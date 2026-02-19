@@ -96,23 +96,35 @@ export const logout = (_, res) => {
 }
 
 export const updateProfile = async (req, res) => {
-    try {
-        const {profilePic} = req.body;
-        if(!profilePic) return res.status(400).json({message:"Profile Pic is required"});
-        const userId = req.user._id;
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "Profile Pic is required" });
+    }
 
-        const uploadResponse = await cloudinary.uploader(profilePic);
+    const userId = req.user._id;
+
+    const uploadResponse = await cloudinary.uploader.upload_stream(
+      { resource_type: "image" },
+      async (error, result) => {
+        if (error) {
+            console.log(error)
+          return res.status(500).json({ message: "Cloudinary upload failed" });
+        }
+
         const updatedUser = await User.findByIdAndUpdate(
-            userId, 
-            {profilePic:uploadResponse.secure_url}, 
-            {new:true}
+          userId,
+          { profilePic: result.secure_url },
+          { new: true }
         );
 
-        res.status(200).json(updatedUser)
+        res.status(200).json(updatedUser);
+      }
+    );
 
-        
-    } catch (error) {
-        console.log("Error occured during update", error);
-        res.status(500).json({message:"Internal server error"})
-    }
-}
+    uploadResponse.end(req.file.buffer);
+
+  } catch (error) {
+    console.log("Error occured during update", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
