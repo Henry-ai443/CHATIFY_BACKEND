@@ -1,6 +1,7 @@
 import cloudinary from "../lib/cloudinary.js";
 import Message from "../models/Message.js";
 import User from "../models/User.js"
+import { getIO } from "../lib/socket.js";
 export const getAllContacts = async (req , res) => {
     try {
         const loggedInUserId = req.user._id;
@@ -22,7 +23,7 @@ export const getMessagesByUserId = async (req, res) => {
                 {senderId:myId, receiverId: userToChatId},
                 {senderId:userToChatId, receiverId:myId}
             ]
-        })
+        }).populate("senderId", "fullName profilePic email").sort({createdAt: 1});
 
         res.status(200).json(messages);
     } catch (error) {
@@ -64,12 +65,21 @@ export const sendMessage = async (req, res) => {
 
         await newMessage.save();
 
-        //todo: sendMessage in real time if user is online - socket.io
+        // Populate sender info for response
+        const populatedMessage = await newMessage.populate("senderId", "fullName profilePic email");
 
+        // Emit realtime message via Socket.IO
+        const io = getIO();
+        if (io) {
+            io.emit("new_message", {
+                ...populatedMessage.toObject(),
+                receiverId
+            });
+        }
 
-        res.status(201).json(newMessage)
+        res.status(201).json(populatedMessage)
     }catch(error){
-        console.log("Error in sendmessage controller");
+        console.log("Error in sendmessage controller", error);
         res.status(500).json({message:"Internal server error"});
     }
 }
@@ -77,7 +87,7 @@ export const getChatPartners = async (req, res) => {
     try {
         const loggedInUserId = req.user._id;
 
-        const messages = await Messages.find({
+        const messages = await Message.find({
             $or:[{senderId: loggedInUserId}, {receiverId:loggedInUserId}],
         });
 
