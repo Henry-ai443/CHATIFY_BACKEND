@@ -86,6 +86,11 @@ io.on("connection", (socket) => {
 app.use("/api/auth", authroutes);
 app.use("/api/messages", messageRoutes)
 
+//Health Check Endpoint
+app.get("/api/health", (req, res) => {
+    res.status(200).json({ status: "ok" });
+});
+
 
 httpServer.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`)
